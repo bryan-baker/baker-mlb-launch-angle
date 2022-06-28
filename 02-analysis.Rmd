@@ -1,0 +1,286 @@
+---
+title: "Launch Angle Analysis"
+output:
+  html_document:
+    df_print: paged
+---
+# Set up
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(ggthemes)
+library(ggplot2)
+```
+
+# Import
+
+```{r import 1}
+top_20_hr_cleaned <- read_rds("data-processed/top_20_hr_cleaned")
+
+hits_top_10_bbe_clean <- read_rds("data-processed/hits_top_10_bbe_clean")
+
+yearly_la_merged <- read_rds("data-processed/yearly_la_merged")
+
+hr_chart_1 <- read_rds("data-processed/hr_chart_1")
+
+yearly_gb_merged <- read_rds("data-processed/yearly_gb_merged")
+
+bip_merged_clean <- read_rds("data-processed/bip_merged_clean")
+```
+
+# Plotting Launch Angle and Home Runs correlation
+
+```{r launch angle plot}
+hr_plot <- ggplot(hr_chart_1, aes(x = launch_angle, y = home_runs)) + geom_col() + labs(x = "Launch Angle (°)", y = "# of Home Runs", title = "Correlation between Launch Angle and Home Runs", subtitle = "5,944 home runs were hit in the 2021 MLB season. What launch angle produced \nthe most home runs?", caption = "By Bryan Baker / Source: baseballsavant.com") 
+
+hr_plot
+```
+
+## Fact: In 2021, a launch angle of 29 degrees produced the most home runs, 448 out of 5,944. ### Five degree interval home run counts: 10-14 degrees: 1, 15-19 degrees: 126, 20-24 degrees: 1,238, 25-29 degrees: 2,093, 30-34 degrees: 1,635, 35-39: 657, 40-44: 159, 45-50: 24.
+
+# Top 20 HR Leaders' BBE import
+
+```{r import 2}
+top_20_hr <- read_csv("data-raw/2021_top_20_hr.csv")
+
+top_20_hr_cleaned <- top_20_hr %>% select(exit_velocity = launch_speed, launch_angle, outcome = events) %>% group_by(outcome)
+```
+
+# Filter for outcome of "home_run"
+## Using this filter to highlight home runs in my next plot
+
+```{r home run filter}
+highligh_hr <- top_20_hr_cleaned %>% filter(outcome == "home_run")
+```
+
+
+# Top 20 Plot
+
+```{r}
+ggplot(top_20_hr_cleaned, aes(x = exit_velocity, y = launch_angle, col(outcome))) + 
+  geom_point(alpha = .3, aes(color = outcome)) +
+  geom_point(data = highligh_hr, aes(x = exit_velocity, y = launch_angle),color = "red") + 
+  xlim(0,120) + ylim(-90,90) + 
+  scale_y_continuous(breaks = c(-90,-75,-60,-45,-30,-15,0,15,30,45,60,75,90)) + 
+  scale_color_manual(values = c("home_run" = "red")) +
+  labs(title = "Home Run Sweet Spot", 
+       subtitle = "The outcome of every batted ball in play by the top 20 HR leaders in 2021 \nbased on launch angle and exit velocity off the bat.",
+       x = "Exit Velocity (MPH)", y = "Launch Angle (°)",
+       caption = "By Bryan Baker Source: baseballsavant.com")
+```
+
+# Plot with sweet spot (Most likely will use this in story)
+
+```{r home run sweet spot plot}
+la_ev_chart <- ggplot(top_20_hr_cleaned, aes(x = exit_velocity, y = launch_angle, col(outcome))) + 
+  geom_point(alpha = .3, aes(color = outcome)) +
+  geom_point(data = highligh_hr, aes(x = exit_velocity, y = launch_angle),color = "red") + 
+  xlim(0,120) + 
+  scale_y_continuous(breaks = c(-90,-75,-60,-45,-30,-15,0,15,30,45,60,75,90)) + 
+  scale_color_manual(values = c("Home Run" = "red")) +
+  geom_vline(xintercept = 118.5) +
+  geom_vline(xintercept = 90.7) +
+  geom_hline(yintercept = 15) +
+  geom_hline(yintercept = 48) +
+  theme(legend.title = element_blank()) +
+  labs(title = "Home Run Sweet Spot", 
+       subtitle = "What is the optimal launch angle and exit velocity to hit a home run? \nGraph shows the outcomes of over 8,000 balls in play in 2021.",
+       x = "Exit Velocity (MPH)", y = "Launch Angle (°)", caption = "By Bryan Baker  Source: Baseball Savant") 
+
+la_ev_chart
+```
+
+## Fact: Home runs in 2021 were hit with a launch angle between 15 and 48 degrees and an exit velocity between 90 and 118 mph.
+
+# Saving plot
+
+```{r}
+ggsave("images/sweet_spot_plot.png", plot = la_ev_chart)
+```
+
+
+# Top 10 hits leaders 2021
+
+```{r import 3}
+hits_top_10_bbe <- read_csv("data-raw/2021_hits_top10.csv")
+```
+
+# Cleaning top 10 hitters data
+
+```{r cleaning}
+hits_top_10_bbe_clean <- hits_top_10_bbe %>% select(xBA = estimated_ba_using_speedangle, launch_angle, exit_velocity = launch_speed, outcome = events, bb_type)
+```
+
+# Filtering for home runs
+
+```{r highlighting home runs}
+hit_data_hr_highlight <- hits_top_10_bbe_clean %>% filter(outcome == "home_run")
+```
+
+# Reference code that I ended up not using but wanted to save
+geom_point(data = hit_data_hr_highlight, aes(x = exit_velocity, y = launch_angle),color = "blue")
+
+stat_ellipse(data = hits_top_10_bbe_clean %>% filter(outcome == "field_out", bb_type == "popup"))
+
+geom_point(data = hit_data_hr_highlight, aes(x = exit_velocity, y = launch_angle),color = "#F02A00") + 
+
+# Plotting the hit probability for the top 10 hitters data
+
+```{r hit probability plot}
+scaleFUN <- function(x) sprintf("%.3f", x)
+
+xBA_2021_plot <- ggplot(hits_top_10_bbe_clean, aes(x = exit_velocity, y = launch_angle)) + geom_point(aes(color = xBA)) + 
+  scale_color_gradient(low = "yellow",high = "red",labels = function(x) sprintf("%.3f", x) ) +
+  xlim(0,120) + 
+  scale_y_continuous(breaks = c(-90,-75,-60,-45,-30,-15,0,15,30,45,60,75,90)) + 
+  geom_hline(yintercept = 10, color = "#606060") +
+  labs(title = "Hit Probability (xBA)", subtitle = "The launch angle and exit velocity combinations of over 5,000 batted balls \nin play during the 2021 regular season. The light-colored areas are more likely \nto result in an out, while the darker areas are more likely to result in a hit.", x = "Exit Velocity (MPH)", y = "Launch Angle (°)", caption = "By Bryan Baker \nSource: Baseball Savant (Data from Statcast)") + theme(plot.caption = element_text(hjust = 0)) +
+  theme_minimal()
+
+xBA_2021_plot
+```
+
+# Explanation of the chart (Using this in story)
+## Expected batting average, also known as hit probability, measures the likelihood that a batted ball will become a hit using two factors: launch angle and exit velocity. 
+
+## Fact: Ground balls are hit with a launch angle less than 10 degrees. Line drives are hit between 10-25 degrees. Fly balls are hit between 25-50 degrees. Pop ups are hit with a launch angle greater than 50 degrees. 
+
+# Saving plot
+
+```{r save xba plot}
+ggsave("images/xBA_2021_plot.png", plot = xBA_2021_plot)
+```
+
+# Finding ground ball outcomes vs line drives vs fly balls vs pop ups.
+## These are the 4 types of batted balls. Trying to find out which types result in more outs vs which types result in more hits. This will tell us what the ideal batted ball type is to record a hit.
+
+
+```{r filter bb types}
+ground_ball <- hits_top_10_bbe_clean %>% filter(bb_type == "ground_ball")
+
+line_drive <- hits_top_10_bbe_clean %>% filter(bb_type == "line_drive")
+
+fly_ball <- hits_top_10_bbe_clean %>% filter(bb_type == "fly_ball")
+
+popup <- hits_top_10_bbe_clean %>% filter(bb_type == "popup")
+```
+
+# Ground ball results
+## Fact: Ground balls resulted in outs 69% of the time. 1,565 outs for 2,269 ground balls.
+
+```{r gb result}
+ground_ball %>% group_by(outcome) %>% summarise(result = n())
+```
+
+
+# Line drive results
+## Fact: Line drives resulted in outs 36% of the time. 503 outs for 1,377 line drives.
+
+```{r ld result}
+line_drive %>% group_by(outcome) %>% summarise(result = n())
+```
+
+# FLy ball results
+## Fact: Fly balls resulted in outs 67% of the time. 955 outs for 1,422 fly balls.
+
+```{r fb result}
+fly_ball %>% group_by(outcome) %>% summarise(result = n())
+```
+
+# Pop up results
+## Fact: Pop ups resulted in outs 95% of the time. 339 outs for 353 popups.
+
+```{r pu result}
+popup %>% group_by(outcome) %>% summarise(result = n())
+```
+
+# Mean xBA for all batted ball types
+
+```{r mean xba}
+mean(ground_ball$xBA, na.rm = TRUE)
+
+mean(line_drive$xBA, na.rm =  TRUE)
+
+mean(fly_ball$xBA, na.rm = TRUE)
+
+mean(popup$xBA, na.rm = TRUE)
+```
+
+
+# Plotting Yearly Launch Angle (Use in story)
+
+```{r yearly launch angle plot}
+yearly_la_plot <- ggplot(yearly_la_merged, aes(x = year, y = launch_angle)) + geom_point() +
+  geom_line() + ylim(10,15) + 
+  scale_x_continuous(breaks = c(2015, 2016,2017,2018,2019,2020,2021)) + 
+  labs(title = "MLB Average Launch Angle by Year", subtitle = "The league average launch angle has risen over the past 7 years as more and \nmore players are focusing on hitting the ball in the air. Average launch angle is \ncalculated by dividing the sum of all launch angles by batted ball events.", x = "Year", y = "Average Launch Angle (°)", caption = "By Bryan Baker\nSource: Baseball Savant (Data tracked by Statcast since 2015)") +
+  theme(plot.caption = element_text(hjust = 0))
+
+yearly_la_plot
+```
+
+```{r save yearly la plot}
+ggsave("images/yearly_la_plot.png", plot = yearly_la_plot)
+```
+
+
+## Fact:
+The league average launch angle increased by almost 2 degrees in 6 years. 
+
+# Plot yearly ground ball
+
+```{r gb plot}
+yearly_gb_plot <- ggplot(yearly_gb_merged, aes(x = year, y = gb_percent)) + geom_point() +
+  geom_line() + scale_x_continuous(breaks = c(2015,2016,2017,2018,2019,2020,2021)) + ylim(7.0,9.0) + labs(title = "Yearly Ground Ball Rate", subtitle = "The percentage of ground balls hit in every MLB season since 2015. Found by dividing \nthe number of ground balls hit by total pitches thrown each year.", x = "Year", y = "Ground Ball Percentage (%)", caption = "By Bryan Baker\nSource: Baseball Savant (Data tracked by Statcast since 2015)") + theme(plot.caption = element_text(hjust = 0))
+
+yearly_gb_plot
+```
+
+# Saving plot
+
+```{r save gb plot}
+ggsave("images/yearly_gb_plot.png", plot = yearly_gb_plot)
+```
+
+
+# Balls in play by year plot
+
+```{r bip plot}
+bip_plot <- ggplot(bip_merged_clean, aes(x = year, y = bip)) + geom_point() +
+  geom_line() + scale_x_continuous(breaks = c(2015,2016,2017,2018,2019,2020,2021)) + ylim(12000,40000) + 
+  labs(title = "Fielded Balls In Play by Year", subtitle = "The number of fielded batted balls in play, excluding home runs because home runs \nare hit out of the field of play. The increased home run rate has decreased the number \nof balls that can be fielded, resulting in less action for the sport.", x = "Year", y = "Balls In Play", caption = "By Bryan Baker\nSource: Baseball Savant (Pandemic shortened season in 2020)")
+
+bip_plot
+```
+
+# Saving plot
+
+```{r save bip plot}
+ggsave("images/bip_plot.png", plot = bip_plot)
+```
+
+
+# xBA plot with a different theme
+
+```{r}
+scaleFUN <- function(x) sprintf("%.3f", x)
+
+xBA_2021_plot2 <- ggplot(hits_top_10_bbe_clean, aes(x = exit_velocity, y = launch_angle)) + geom_point(aes(color = xBA)) + 
+  scale_color_gradient(low = "yellow",high = "red",labels = function(x) sprintf("%.3f", x) ) +
+  xlim(0,120) + 
+  scale_y_continuous(breaks = c(-90,-75,-60,-45,-30,-15,0,15,30,45,60,75,90)) + 
+  geom_hline(yintercept = 10, color = "#606060") +
+  labs(title = "Hit Probability (xBA)", subtitle = "The launch angle and exit velocity combinations of over 5,000 batted balls \nin play during the 2021 regular season. The light-colored areas are more likely \nto result in an out, while the darker areas are more likely to result in a hit.", x = "Exit Velocity (MPH)", y = "Launch Angle (°)", caption = "By Bryan Baker \nSource: Baseball Savant (Data from Statcast)") + theme(plot.caption = element_text(hjust = 0)) 
+
+xBA_2021_plot2
+```
+
+```{r}
+ggsave("images/xBA_2021_plot2.png", plot = xBA_2021_plot2)
+```
+
+
+# Lede
+Major League Baseball's average launch angle increased by almost two degrees in six years. Data suggests that players are focusing more and more on hitting the ball in the air. 
+

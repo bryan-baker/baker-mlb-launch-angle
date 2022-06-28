@@ -1,0 +1,264 @@
+---
+title: "Launch Angle Import"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r set up}
+library(tidyverse)
+library(janitor)
+library(ggthemes)
+library(ggplot2)
+```
+
+
+# Import
+
+```{r import}
+home_runs_2021 <- read_csv("data-raw/2021_home_runs.csv")
+```
+
+# Filter and Clean Data
+
+```{r filter}
+home_runs_2021_clean <- home_runs_2021 %>% 
+  select(player_name, 
+         outcome = events,
+         distance = hit_distance_sc, 
+         exit_velocity = launch_speed,
+         launch_angle
+         ) %>% arrange(launch_angle) 
+```
+
+
+Trying to find which 5 degree launch angle range correlates with the most home runs hit
+Separate data into sets of launch angle degree (for example Every Home Run hit with a launch angle between 15-20 degrees)
+
+Count rows with a launch_angle of x ???
+
+# Organize data to plot
+
+```{r}
+hr_chart_1 <- home_runs_2021_clean %>% group_by(launch_angle) %>% 
+  summarize(home_runs =n()) %>% arrange(launch_angle)
+```
+
+# Plotting Launch Angle and Home Runs
+
+```{r plot}
+hr_plot <- ggplot(hr_chart_1, aes(x = launch_angle, y = home_runs)) + geom_col() + labs(x = "Launch Angle (°)", y = "# of Home Runs", title = "Correlation between Launch Angle and Home Runs", subtitle = "5,944 home runs were hit in the 2021 MLB season. What launch angle produced \nthe most home runs?", caption = "By Bryan Baker / Source: baseballsavant.com") 
+
+hr_plot
+```
+
+
+# Saving plot as image
+
+```{r save hr plot}
+ggsave("images/hrplot.png", plot = hr_plot)
+```
+
+
+# Top 20 HR Leaders' BBE
+
+```{r import bbe data}
+top_20_hr <- read_csv("data-raw/2021_top_20_hr.csv")
+
+top_20_hr_cleaned <- top_20_hr %>% select(exit_velocity = launch_speed, launch_angle, outcome = events) %>% group_by(outcome)
+```
+
+# Filter for outcome of "home_run"
+
+```{r filter hr}
+highligh_hr <- top_20_hr_cleaned %>% filter(outcome == "home_run")
+```
+
+
+# Top 20 Plot
+
+```{r plot}
+ggplot(top_20_hr_cleaned, aes(x = exit_velocity, y = launch_angle, col(outcome))) + 
+  geom_point(alpha = .3, aes(color = outcome)) +
+  geom_point(data = highligh_hr, aes(x = exit_velocity, y = launch_angle),color = "red") + 
+  xlim(0,120) + ylim(-90,90) + 
+  scale_y_continuous(breaks = c(-90,-75,-60,-45,-30,-15,0,15,30,45,60,75,90)) + 
+  scale_color_manual(values = c("home_run" = "red")) +
+  labs(title = "Home Run Sweet Spot", 
+       subtitle = "The outcome of every batted ball in play by the top 20 HR leaders in 2021 \nbased on launch angle and exit velocity off the bat.",
+       x = "Exit Velocity (MPH)", y = "Launch Angle (°)",
+       caption = "By Bryan Baker Source: baseballsavant.com")
+```
+
+# Plot with shade (Using this one)
+
+```{r}
+la_ev_chart <- ggplot(top_20_hr_cleaned, aes(x = exit_velocity, y = launch_angle, col(outcome))) + 
+  geom_point(alpha = .3, aes(color = outcome)) +
+  geom_point(data = highligh_hr, aes(x = exit_velocity, y = launch_angle),color = "red") + 
+  xlim(0,120) + 
+  scale_y_continuous(breaks = c(-90,-75,-60,-45,-30,-15,0,15,30,45,60,75,90)) + 
+  scale_color_manual(values = c("home_run" = "red")) +
+  geom_vline(xintercept = 118.5) +
+  geom_vline(xintercept = 90.7) +
+  geom_hline(yintercept = 15) +
+  geom_hline(yintercept = 48) +
+  theme(legend.title = element_blank()) +
+  labs(title = "Home Run Sweet Spot", 
+       subtitle = "What is the optimal launch angle and speed to hit a home run?",
+       x = "Exit Velocity (MPH)", y = "Launch Angle (°)", caption = "By Bryan Baker  Source: Baseball Savant")
+
+la_ev_chart
+```
+
+
+```{r save la ev chart}
+ggsave("images/la_ev_chart.png", plot = la_ev_chart)
+```
+
+# Top 10 hits leaders 2021
+
+```{r import}
+hits_top_10_bbe <- read_csv("data-raw/2021_hits_top10.csv")
+```
+
+```{r}
+hits_top_10_bbe_clean <- hits_top_10_bbe %>% select(xBA = estimated_ba_using_speedangle, launch_angle, exit_velocity = launch_speed, outcome = events, bb_type)
+```
+
+```{r}
+hit_data_hr_highlight <- hits_top_10_bbe_clean %>% filter(outcome == "home_run")
+```
+
+# Reference code I wanted to save
+geom_point(data = hit_data_hr_highlight, aes(x = exit_velocity, y = launch_angle),color = "blue")
+
+stat_ellipse(data = hits_top_10_bbe_clean %>% filter(outcome == "field_out", bb_type == "popup"))
+
+# Plot xBA
+
+```{r}
+scaleFUN <- function(x) sprintf("%.3f", x)
+
+xBA_2021_plot <- ggplot(hits_top_10_bbe_clean, aes(x = exit_velocity, y = launch_angle)) + geom_point(aes(color = xBA)) + 
+  scale_color_gradient(low = "yellow",high = "red",labels = function(x) sprintf("%.3f", x) ) +
+  xlim(0,120) + 
+  scale_y_continuous(breaks = c(-90,-75,-60,-45,-30,-15,0,15,30,45,60,75,90)) + 
+  geom_point(data = hit_data_hr_highlight, aes(x = exit_velocity, y = launch_angle),color = "#D82C20") + 
+  geom_hline(yintercept = 10) + 
+  geom_text(x=5, y= 7, label= "Ground balls", size = 3) +
+  labs(title = "Hit Probability", subtitle = "The launch angle and exit velocity combinations of over 5,000 balls put in play \nthat resulted in a hit or an out in the 2021 regular season. The light-colored areas \nare more likely to result in an out, while the darker areas are more likely to result in a hit.", x = "Exit Velocity (MPH)", y = "Launch Angle (°)", caption = "By Bryan Baker \nSource: Baseball Savant (Data from Statcast)") + 
+   theme(plot.caption = element_text(hjust = 0))
+
+xBA_2021_plot
+```
+
+# Saving plot
+
+```{r}
+ggsave("images/xBA_2021_plot.png", plot = xBA_2021_plot)
+```
+
+
+
+# Import Yearly Launch Angle 
+
+```{r}
+yearly_la_19_21 <- read_csv("data-raw/yearly_la1.csv")
+
+yearly_la_17_18 <- read_csv("data-raw/yearly_la2.csv")
+
+yearly_la_15_16 <- read_csv("data-raw/yearly_la3.csv")
+```
+
+# Cleaning data 
+
+```{r}
+la_1516_clean <- yearly_la_15_16 %>% select(year, ba, slg, woba, xwoba, xba, exit_velocity = launch_speed, launch_angle)
+
+la_1718_clean <- yearly_la_17_18 %>% select(year, ba, slg, woba, xwoba, xba, exit_velocity = launch_speed, launch_angle)
+
+la_192021_clean <- yearly_la_19_21 %>% select(year, ba, slg, woba, xwoba, xba, exit_velocity = launch_speed, launch_angle)
+
+```
+
+# Merging yearly launch angle data
+
+```{r}
+yearly_la_merged <- la_1516_clean %>% bind_rows(la_1718_clean) %>% bind_rows(la_192021_clean)
+```
+
+
+# Plotting Yearly Launch Angle
+
+```{r}
+ggplot(yearly_la_merged, aes(x = year, y = launch_angle)) + geom_point() +
+  geom_line() + ylim(10,15) + 
+  scale_x_continuous(breaks = c(2015, 2016,2017,2018,2019,2020,2021)) + 
+  labs(title = "MLB Average Launch Angle by Year", subtitle = "The league average launch angle has risen over the past 7 years as more and more players \nare focusing on hitting the ball in the air. Average launch angle is calculated by dividing \nthe sum of all launch angles by batted ball events.", x = "Year", y = "Average Launch Angle (°)", caption = "By Bryan Baker\nSource: Baseball Savant (Data tracked by Statcast since 2015)") +
+  theme(plot.caption = element_text(hjust = 0))
+```
+
+# Ground ball numbers year to year
+
+## Import
+
+```{r}
+yearly_gb1 <- read_csv("data-raw/yearly_gb1.csv")
+
+yearly_gb2 <- read_csv("data-raw/yearly_gb2.csv")
+```
+
+# Cleaning ground ball years
+
+```{r}
+yearly_gb1_clean <- yearly_gb1 %>% select(groundballs = pitches, year, hits, xba, ba, gb_percent = pitch_percent)
+
+yearly_gb2_clean <- yearly_gb2 %>% select(groundballs = pitches, year, hits, xba, ba, gb_percent = pitch_percent)
+```
+
+# Merge data
+
+```{r}
+yearly_gb_merged <- yearly_gb1_clean %>% bind_rows(yearly_gb2_clean)
+```
+
+
+
+# Import balls in play data
+
+```{r}
+bip1 <- read_csv("data-raw/bip1.csv")
+bip2 <- read_csv("data-raw/bip2.csv")
+```
+
+# Clean and merge ball in play data
+
+```{r bip clean}
+bip_merged <- bip1 %>% bind_rows(bip2)
+
+bip_merged_clean <- bip_merged %>% select(bip = pitches, year, launch_speed, launch_angle)
+```
+
+# Export
+
+```{r export}
+yearly_la_merged %>% write_rds("data-processed/yearly_la_merged")
+
+hits_top_10_bbe_clean %>% write_rds("data-processed/hits_top_10_bbe_clean")
+
+top_20_hr_cleaned %>% write_rds("data-processed/top_20_hr_cleaned")
+
+hr_chart_1 %>% write_rds("data-processed/hr_chart_1")
+
+yearly_gb_merged %>% write_rds("data-processed/yearly_gb_merged")
+
+bip_merged_clean %>% write_rds("data-processed/bip_merged_clean")
+```
+
+# Potential Sources
+Chas Pippitt
+Matt Lisle
+Jeff Manto
+LLoyd Smith
+Howard Bryant
